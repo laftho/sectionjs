@@ -7,8 +7,11 @@ class SectionJSEvent extends Event {
 }
 
 class Section {
-    constructor() {
+    constructor(element) {
         this.constructor.elements[this.constructor.elements.length] = this;
+
+        this.element = element || {};
+        this.element.controller = this;
     }
 
     static defer(delegate) {

@@ -1,11 +1,3 @@
-class SectionJSEvent extends Event {
-    constructor(name, context) {
-        super(name);
-
-        this.context = context;
-    }
-}
-
 class Section {
     constructor(element) {
         this.constructor.elements[this.constructor.elements.length] = this;
@@ -20,59 +12,14 @@ class Section {
         Section.deferred.push(delegate);
     }
 
-    static load(tag) {
-        let context = {
-            tag: tag,
-            tagName: tag.getAttribute("data-tag"),
-            importDocument: tag.import,
-            elements: [],
-            base: null
-        };
+    static create() {
+        if (this.tag) {
+            let el = new this.tag();
 
-        context.base = Object.create(HTMLElement.prototype);
-        context.base.createdCallback = () => {
-            let templateElement = null;
+            return this.creator.create(el);
+        }
 
-            let templateElements = context.importDocument.getElementsByTagName("template");
-            if (!templateElements || templateElements.length !== 1) throw new Error("requires exactly one template");
-
-            templateElement = templateElements[0];
-
-            let clone = document.importNode(templateElement.content, true);
-
-            //Section.defer(() => {
-                let element = document.getElementsByTagName(context.tagName)[context.elements.length];
-
-                let children = [];
-
-                let hasContentElement = !!(clone.querySelector("content"));
-
-                if (hasContentElement) {
-                    while (element.firstChild) {
-                        children.push(element.removeChild(element.firstChild));
-                    }
-                }
-
-                element.appendChild(clone);
-
-                if (hasContentElement) {
-                    let contentElement = element.getElementsByTagName("content");
-
-                    if (contentElement && contentElement.length > 0) {
-                        children.forEach((child) => contentElement[0].appendChild(child));
-                    } else {
-                        throw new Error("somehow we lost the content element");
-                    }
-                }
-
-                let event = new SectionJSEvent("tagcreated", context);
-                context.tag.dispatchEvent(event);
-                context.importDocument.dispatchEvent(event);
-
-            //}, false);
-        };
-
-        document.registerElement(context.tagName, {prototype: context.base });
+        throw new Error("Create called before registration");
     }
 
     static register(tag, template) {
@@ -81,30 +28,29 @@ class Section {
         Type.tagName = tag;
         Type.importDocument = document.currentScript.ownerDocument;
         Type.elements = [];
+        Type.creator = {};
 
         Type.base = Object.create(HTMLElement.prototype);
 
         Type.base.createdCallback = () => {
-            let templateElement = null;
+            Type.template = null;
 
             if (!template) {
                 let templateElements = Type.importDocument.getElementsByTagName("template");
 
-                if (!templateElements || templateElements.length != 1) throw new Error("requires exactly one template");
+                if (!templateElements || templateElements.length !== 1) throw new Error("requires exactly one template");
 
-                templateElement = templateElements[0];
+                Type.template = templateElements[0];
             } else if (typeof template === "string") {
-                templateElement = Type.importDocument.getElementById(template);
+                Type.template = Type.importDocument.getElementById(template);
 
-                if (!templateElement) throw new Error(`template by id ${template} undefined`);
+                if (!Type.template) throw new Error(`template by id ${template} undefined`);
             } else {
-                templateElement = template;
+                Type.template = template;
             }
 
-            let clone = document.importNode(templateElement.content, true);
-
-            Section.defer(() => {
-                let element = document.getElementsByTagName(Type.tagName)[Type.elements.length];
+            Type.creator.createWithElement = (element) => {
+                let clone = document.importNode(Type.template.content, true);
 
                 let children = [];
 
@@ -128,18 +74,31 @@ class Section {
                     }
                 }
 
-                new Type(element);
-            }, false);
+                return new Type(element);
+            };
+
+            Type.creator.create = (el) => {
+                return Type.creator.createWithElement(el || document.createElement(Type.tagName));
+            };
+
+            if (!Section.loaded) {
+                Section.defer(() => {
+                    Type.creator.createWithElement(document.getElementsByTagName(Type.tagName)[Type.elements.length]);
+                }, false);
+            }
         };
 
-        return document.registerElement(Type.tagName, {prototype: Type.base });
+        Type.tag = document.registerElement(Type.tagName, {prototype: Type.base });
+
+        return Type.tag;
     }
-};
+}
 
 window.addEventListener("load", () => {
-    let delegate = null;
+    let delegate;
     if (!Section.deferred) Section.deferred = [];
     while(delegate = Section.deferred.pop()) {
         delegate();
     }
+    Section.loaded = true;
 });

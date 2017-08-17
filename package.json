@@ -1,6 +1,6 @@
 {
   "name": "sectionjs",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "html templating",
   "main": "section.js",
   "scripts": {
